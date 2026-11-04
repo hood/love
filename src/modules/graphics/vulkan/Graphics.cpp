@@ -3598,6 +3598,11 @@ void Graphics::createSyncObjects()
 
 void Graphics::cleanup()
 {
+	// Queued clean-up functions only wait on per-frame fences while running
+	// frames. Here we destroy everything at once, so wait for the GPU first.
+	if (device != VK_NULL_HANDLE)
+		vkDeviceWaitIdle(device);
+
 	for (auto &cleanUpFns : cleanUpFunctions)
 		for (auto &cleanUpFn : cleanUpFns)
 			cleanUpFn();
