@@ -1364,9 +1364,10 @@ int Graphics::getBackbufferMSAA() const
 
 void Graphics::setScissor(const FRect &rect, bool rtActive)
 {
-	flushBatchedDraws();
-
 	DisplayState &state = states.back();
+
+	if (!state.scissor || !(state.scissorRect == rect))
+		flushBatchedDraws();
 
 	if (!gl.isStateEnabled(OpenGL::ENABLE_SCISSOR_TEST))
 		gl.setEnableState(OpenGL::ENABLE_SCISSOR_TEST, true);
@@ -1406,7 +1407,8 @@ void Graphics::setStencilState(const StencilState &s)
 {
 	validateStencilState(s);
 
-	flushBatchedDraws();
+	if (!(s == states.back().stencil))
+		flushBatchedDraws();
 
 	bool enablestencil = s.action != STENCIL_KEEP || s.compare != COMPARE_ALWAYS;
 	if (enablestencil != gl.isStateEnabled(OpenGL::ENABLE_STENCIL_TEST))
@@ -1518,7 +1520,8 @@ void Graphics::setColor(Colorf c)
 
 void Graphics::setColorMask(ColorChannelMask mask)
 {
-	flushBatchedDraws();
+	if (mask != states.back().colorMask)
+		flushBatchedDraws();
 
 	uint32 maskbits =
 		((mask.r ? 1 : 0) << 0) | ((mask.g ? 1 : 0) << 1) |
