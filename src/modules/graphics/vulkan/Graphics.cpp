@@ -919,14 +919,16 @@ void Graphics::setFrontFaceWinding(Winding winding)
 
 void Graphics::setColorMask(ColorChannelMask mask)
 {
-	flushBatchedDraws();
+	if (mask != states.back().colorMask)
+		flushBatchedDraws();
 
 	states.back().colorMask = mask;
 }
 
 void Graphics::setBlendState(const BlendState &blend)
 {
-	flushBatchedDraws();
+	if (!(blend == states.back().blend))
+		flushBatchedDraws();
 
 	states.back().blend = blend;
 }
@@ -1124,7 +1126,8 @@ void Graphics::applyScissor()
 
 void Graphics::setScissor(const FRect &rect)
 {
-	flushBatchedDraws();
+	if (!states.back().scissor || !(states.back().scissorRect == rect))
+		flushBatchedDraws();
 
 	states.back().scissor = true;
 	states.back().scissorRect = rect;
@@ -1135,7 +1138,8 @@ void Graphics::setScissor(const FRect &rect)
 
 void Graphics::setScissor()
 {
-	flushBatchedDraws();
+	if (states.back().scissor)
+		flushBatchedDraws();
 
 	states.back().scissor = false;
 
@@ -1147,7 +1151,8 @@ void Graphics::setStencilState(const StencilState &s)
 {
 	validateStencilState(s);
 
-	flushBatchedDraws();
+	if (!(s == states.back().stencil))
+		flushBatchedDraws();
 
 	vkCmdSetStencilWriteMask(commandBuffers.at(currentFrame), VK_STENCIL_FRONT_AND_BACK, s.writeMask);
 	

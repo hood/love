@@ -1847,9 +1847,13 @@ void Graphics::setColor(Colorf c)
 
 void Graphics::setScissor(const FRect &rect)
 {
+	DisplayState &state = states.back();
+
+	if (state.scissor && state.scissorRect == rect)
+		return;
+
 	flushBatchedDraws();
 
-	DisplayState &state = states.back();
 	state.scissor = true;
 	state.scissorRect = rect;
 	dirtyRenderState |= STATEBIT_SCISSOR;
@@ -1869,6 +1873,9 @@ void Graphics::setScissor()
 void Graphics::setStencilState(const StencilState &s)
 {
 	validateStencilState(s);
+
+	if (s == states.back().stencil)
+		return;
 
 	flushBatchedDraws();
 
