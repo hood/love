@@ -240,16 +240,19 @@ void Buffer::unmap(size_t usedoffset, size_t usedsize)
 		return;
 	}
 
-	// Orphan optimization - see fill().
-	if (supportsOrphan() && mappedRange.first == 0 && mappedRange.getSize() == getSize())
-	{
-		usedoffset = 0;
-		usedsize = getSize();
-	}
-
 	char *data = memoryMap + (usedoffset - mappedRange.getOffset());
 
-	fill(usedoffset, usedsize, data);
+	if (supportsOrphan() && mappedRange.first == 0 && mappedRange.getSize() == getSize())
+	{
+		// The whole buffer was mapped for writing, so its previous contents
+		// are discarded. Orphan it (see fill()) and only upload the used part.
+		gl.bindBuffer(mapUsage, buffer);
+		glBufferData(target, (GLsizeiptr) getSize(), nullptr, OpenGL::getGLBufferDataUsage(dataUsage));
+		if (usedsize > 0)
+			glBufferSubData(target, (GLintptr) usedoffset, (GLsizeiptr) usedsize, data);
+	}
+	else
+		fill(usedoffset, usedsize, data);
 
 	if (!ownsMemoryMap)
 	{

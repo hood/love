@@ -29,6 +29,7 @@
 
 // C++
 #include <algorithm>
+#include <cstring>
 
 // C
 #include <stddef.h>
@@ -187,7 +188,20 @@ void SpriteBatch::flush()
 		size_t size = modified_sprites.getSize() * vertex_stride * 4;
 
 		if (array_buf->getDataUsage() == BUFFERDATAUSAGE_STREAM)
-			array_buf->fill(0, array_buf->getSize(), vertex_data);
+		{
+			// Only the first 'next' sprites can be drawn. Mapping the whole
+			// buffer lets backends discard the rest instead of uploading it.
+			size_t usedsize = (size_t) next * vertex_stride * 4;
+			if (usedsize > 0)
+			{
+				void *dst = array_buf->map(Buffer::MAP_WRITE_INVALIDATE, 0, array_buf->getSize());
+				if (dst != nullptr)
+				{
+					memcpy(dst, vertex_data, usedsize);
+					array_buf->unmap(0, usedsize);
+				}
+			}
+		}
 		else
 			array_buf->fill(offset, size, vertex_data + offset);
 
