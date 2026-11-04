@@ -61,6 +61,7 @@ private:
 	void updateSpacesForTabInfo();
 	bool isValidGlyph(uint32 glyphindex, const std::vector<uint32> &codepoints, uint32 codepointindex);
 	void computeBufferRanges(const ColoredCodepoints &codepoints, Range range, std::vector<BufferRange> &bufferranges);
+	int computeWordWrapIndexShaped(const ColoredCodepoints &codepoints, Range range, float wraplimit, float *width, bool *prefixsafe);
 
 	std::vector<hb_font_t *> hbFonts;
 	std::vector<hb_buffer_t *> hbBuffers;

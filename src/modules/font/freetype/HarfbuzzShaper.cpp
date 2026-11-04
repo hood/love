@@ -377,6 +377,56 @@ int HarfbuzzShaper::computeWordWrapIndex(const ColoredCodepoints &codepoints, Ra
 	if (!range.isValid())
 		range = Range(0, codepoints.cps.size());
 
+	// getWrap calls this once per line with the rest of the paragraph, so
+	// shaping the whole range every time is quadratic in the paragraph length.
+	// Instead shape a growing prefix that ends at a word boundary. The prefix's
+	// last word may be shaped differently than in the full range (it's cut
+	// off from what follows), so only accept a wrap that happens before it.
+	const size_t end = range.getMax() + 1;
+
+	size_t chunksize = 128;
+
+	while (chunksize < range.getSize())
+	{
+		size_t chunkend = range.first + chunksize;
+		while (chunkend < end && !isWhitespace(codepoints.cps[chunkend]))
+			chunkend++;
+
+		if (chunkend >= end)
+			break;
+
+		size_t lastwordstart = chunkend;
+		while (lastwordstart > range.first && !isWhitespace(codepoints.cps[lastwordstart - 1]))
+			lastwordstart--;
+
+		bool prefixsafe = false;
+		float chunkwidth = 0.0f;
+		Range chunk(range.first, chunkend - range.first);
+		int wrapindex = computeWordWrapIndexShaped(codepoints, chunk, wraplimit, &chunkwidth, &prefixsafe);
+
+		if (!prefixsafe)
+			break;
+
+		if (wrapindex < (int) lastwordstart)
+		{
+			if (width)
+				*width = chunkwidth;
+			return wrapindex;
+		}
+
+		// Guess how much text fits from the prefix's width, so long lines
+		// don't need many retries.
+		size_t nextsize = chunksize * 2;
+		if (chunkwidth > 0.0f && wraplimit > chunkwidth)
+			nextsize = std::max(nextsize, (size_t) ((chunkend - range.first) * (wraplimit / chunkwidth) * 1.25f));
+		chunksize = nextsize;
+	}
+
+	return computeWordWrapIndexShaped(codepoints, range, wraplimit, width, nullptr);
+}
+
+int HarfbuzzShaper::computeWordWrapIndexShaped(const ColoredCodepoints &codepoints, Range range, float wraplimit, float *width, bool *prefixsafe)
+{
 	float w = 0.0f;
 	float outwidth = 0.0f;
 	float widthbeforelastspace = 0.0f;
@@ -388,6 +438,26 @@ int HarfbuzzShaper::computeWordWrapIndex(const ColoredCodepoints &codepoints, Ra
 
 	std::vector<BufferRange> bufferranges;
 	computeBufferRanges(codepoints, range, bufferranges);
+
+	if (prefixsafe != nullptr)
+	{
+		// A shaped prefix only matches the full range when glyphs are laid out
+		// in logical order and the segment properties Harfbuzz guessed from the
+		// prefix are the ones it would guess for the full range.
+		*prefixsafe = true;
+		for (const auto &bufferrange : bufferranges)
+		{
+			hb_buffer_t *hbbuffer = hbBuffers[bufferrange.index];
+			hb_script_t script = hb_buffer_get_script(hbbuffer);
+			if (hb_buffer_get_direction(hbbuffer) != HB_DIRECTION_LTR
+				|| script == HB_SCRIPT_INVALID || script == HB_SCRIPT_COMMON
+				|| script == HB_SCRIPT_INHERITED || script == HB_SCRIPT_UNKNOWN)
+			{
+				*prefixsafe = false;
+				return (int) range.last + 1;
+			}
+		}
+	}
 
 	for (const auto &bufferrange : bufferranges)
 	{
