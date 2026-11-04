@@ -29,6 +29,7 @@
 #include <cmath>
 #include <iostream>
 #include <algorithm>
+#include <atomic>
 
 // Put the Lua code directly into a raw string literal.
 static const char math_lua[] =
@@ -318,7 +319,10 @@ int w_linearToGamma(lua_State *L)
 
 int w_noise(lua_State *L)
 {
-	luax_markdeprecated(L, 1, "love.math.noise", API_FUNCTION, DEPRECATED_REPLACED, "love.math.perlinNoise or love.math.simplexNoise");
+	// Only mark on first use, it takes a lock and does a map lookup.
+	static std::atomic<bool> deprecated(false);
+	if (!deprecated.exchange(true))
+		luax_markdeprecated(L, 1, "love.math.noise", API_FUNCTION, DEPRECATED_REPLACED, "love.math.perlinNoise or love.math.simplexNoise");
 
 	int nargs = std::min(std::max(lua_gettop(L), 1), 4);
 	double args[4];

@@ -112,8 +112,15 @@ local love = require("love")
 
 -- Overwrite some regular love.math functions with FFI implementations.
 
+-- Only mark deprecated APIs on first use: love.markDeprecated is a C function
+-- (it takes a lock and does a map lookup), which also aborts JIT traces.
+local noisedeprecated = false
+
 function love_math.noise(x, y, z, w)
-	love.markDeprecated(2, "love.math.noise", "function", "replaced", "love.math.perlinNoise or love.math.simplexNoise")
+	if not noisedeprecated then
+		noisedeprecated = true
+		love.markDeprecated(2, "love.math.noise", "function", "replaced", "love.math.perlinNoise or love.math.simplexNoise")
+	end
 
 	if w ~= nil then
 		return tonumber(ffifuncs.pnoise4(x, y, z, w))
