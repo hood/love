@@ -35,6 +35,7 @@
 
 // C
 #include <cstdlib>
+#include <climits>
 
 namespace love
 {
@@ -47,54 +48,77 @@ namespace magpie
 static unsigned zlibDecompress(unsigned char **out, size_t *outsize, const unsigned char *in,
                                size_t insize, const LodePNGDecompressSettings* /*settings*/)
 {
-	int status = Z_OK;
+	z_stream stream = {};
+	if (inflateInit(&stream) != Z_OK)
+		return 83; // "Memory allocation failed" error code for LodePNG.
 
-	uLongf outdatasize = insize;
-	size_t sizemultiplier = 0;
+	// LodePNG uses malloc, realloc, and free.
+	// Since version 2014-08-23, LodePNG passes in an existing pointer in
+	// the 'out' argument that it expects to be realloc'd. Not doing so can
+	// result in a memory leak.
 	unsigned char *outdata = out != nullptr ? *out : nullptr;
+
+	// Start with a guess and grow the buffer when it fills up. inflate() picks
+	// up where it left off, so no data is decompressed more than once.
+	size_t capacity = std::max(insize * 4, (size_t) 1024);
+	size_t written = 0;
+	size_t consumed = 0;
+	unsigned error = 0;
 
 	while (true)
 	{
-		// Enough size to hold the decompressed data, hopefully.
-		outdatasize = insize << (++sizemultiplier);
+		if (written == capacity)
+			capacity *= 2;
 
-		// LodePNG uses malloc, realloc, and free.
-		// Since version 2014-08-23, LodePNG passes in an existing pointer in
-		// the 'out' argument that it expects to be realloc'd. Not doing so can
-		// result in a memory leak.
-		if (outdata != nullptr)
-			outdata = (unsigned char *) realloc(outdata, outdatasize);
-		else
-			outdata = (unsigned char *) malloc(outdatasize);
+		unsigned char *newdata = (unsigned char *) realloc(outdata, capacity);
+		if (newdata == nullptr)
+		{
+			error = 83; // "Memory allocation failed" error code for LodePNG.
+			break;
+		}
+		outdata = newdata;
 
-		if (!outdata)
-			return 83; // "Memory allocation failed" error code for LodePNG.
+		stream.next_in = (Bytef *) (in + consumed);
+		stream.avail_in = (uInt) std::min(insize - consumed, (size_t) UINT_MAX);
+		stream.next_out = outdata + written;
+		stream.avail_out = (uInt) std::min(capacity - written, (size_t) UINT_MAX);
 
-		// Use zlib to decompress the PNG data.
-		status = uncompress(outdata, &outdatasize, in, insize);
+		int status = inflate(&stream, Z_NO_FLUSH);
 
-		// If the out buffer was big enough, break out of the loop.
-		if (status != Z_BUF_ERROR)
+		consumed = (size_t) (stream.next_in - in);
+		written = (size_t) (stream.next_out - outdata);
+
+		if (status == Z_STREAM_END)
 			break;
 
-		// Otherwise delete the out buffer and try again with a larger size...
-		free(outdata);
-		outdata = nullptr;
+		// Z_BUF_ERROR only means no progress was possible. That's fine if the
+		// output buffer is full (we grow it), but an error if the input ran out.
+		bool needsoutput = written == capacity;
+		if ((status != Z_OK && status != Z_BUF_ERROR) || (!needsoutput && consumed == insize))
+		{
+			error = 10000; // "Unknown error code" for LodePNG.
+			break;
+		}
 	}
 
-	if (status != Z_OK)
+	inflateEnd(&stream);
+
+	if (error != 0)
 	{
 		free(outdata);
-		return 10000; // "Unknown error code" for LodePNG.
+		outdata = nullptr;
+		written = 0;
 	}
 
 	if (out != nullptr)
 		*out = outdata;
+	else
+		free(outdata);
 
 	if (outsize != nullptr)
-		*outsize = outdatasize;
+		*outsize = written;
 
-	return 0; // Success.
+	return error;
 }
 
 // Custom PNG compression function for LodePNG, using zlib.
