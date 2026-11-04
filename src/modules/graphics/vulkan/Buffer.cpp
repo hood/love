@@ -170,7 +170,6 @@ void Buffer::unloadVolatile()
 
 	vgfx->queueCleanUp(
 		[device=device, allocator=allocator, buffer=buffer, allocation=allocation, bufferView=bufferView](){
-		vkDeviceWaitIdle(device);
 		vmaDestroyBuffer(allocator, buffer, allocation);
 		if (bufferView)
 			vkDestroyBufferView(device, bufferView, nullptr);
