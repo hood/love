@@ -387,9 +387,6 @@ bool Source::update()
 	{
 		case TYPE_STATIC:
 		{
-			// Looping mode could have changed.
-			// FIXME: make looping mode change atomically so this is not needed
-			alSourcei(source, AL_LOOPING, isLooping() ? AL_TRUE : AL_FALSE);
 			return !isFinished();
 		}
 		case TYPE_STREAM:
@@ -769,6 +766,10 @@ void Source::setLooping(bool enable)
 {
 	if (sourceType == TYPE_QUEUE)
 		throw QueueLoopingException();
+
+	// Lock so the AL source can't be assigned or released (which applies the
+	// looping state in reset()) while we change it.
+	Lock l = pool->lock();
 
 	if (valid && sourceType == TYPE_STATIC)
 		alSourcei(source, AL_LOOPING, enable ? AL_TRUE : AL_FALSE);
