@@ -52,8 +52,12 @@ function graphics.newVideo(file, settings)
 	return video
 end
 
+local stencildeprecated = false
 function graphics.stencil(func, action, value, keepvalues)
-	love.markDeprecated(2, "love.graphics.stencil", "function", "replaced", "love.graphics.setStencilMode or setStencilState")
+	if not stencildeprecated then
+		stencildeprecated = true
+		love.markDeprecated(2, "love.graphics.stencil", "function", "replaced", "love.graphics.setStencilMode or setStencilState")
+	end
 
 	if action == nil then action = "replace" end
 	
@@ -79,8 +83,12 @@ function graphics.stencil(func, action, value, keepvalues)
 	end
 end
 
+local setstenciltestdeprecated = false
 function graphics.setStencilTest(mode, value)
-	love.markDeprecated(2, "love.graphics.setStencilTest", "function", "replaced", "love.graphics.setStencilMode or setStencilState")
+	if not setstenciltestdeprecated then
+		setstenciltestdeprecated = true
+		love.markDeprecated(2, "love.graphics.setStencilTest", "function", "replaced", "love.graphics.setStencilMode or setStencilState")
+	end
 
 	if mode ~= nil then
 		graphics.setStencilState("keep", mode, value)
@@ -89,8 +97,12 @@ function graphics.setStencilTest(mode, value)
 	end
 end
 
+local getstenciltestdeprecated = false
 function graphics.getStencilTest()
-	love.markDeprecated(2, "love.graphics.getStencilTest", "function", "replaced", "love.graphics.getStencilMode or getStencilState")
+	if not getstenciltestdeprecated then
+		getstenciltestdeprecated = true
+		love.markDeprecated(2, "love.graphics.getStencilTest", "function", "replaced", "love.graphics.getStencilMode or getStencilState")
+	end
 
 	local action, mode, value = graphics.getStencilState()
 	return mode, value
